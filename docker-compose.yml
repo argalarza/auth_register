@@ -1,0 +1,19 @@
+
+services:
+  register-service:
+    build: ./services/register_user
+    ports:
+      - "4001:4001"
+    environment:
+      - DB_HOST=${DB_HOST}
+      - DB_PORT=${DB_PORT}
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - DB_NAME=${DB_NAME}
+    networks:
+      - my_global_network  # Conectamos a la red externa
+    restart: unless-stopped
+
+networks:
+  my_global_network:
+    external: true  # Usamos la red creada manualmente
