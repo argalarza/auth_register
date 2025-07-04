@@ -1,75 +1,54 @@
-name: Deploy to EC2
+name: 🚀 Build & Deploy Register Service to EC2
 
 on:
   push:
     branches:
-      - main  # SAsegúrate de cambiar esto si usas otra rama principal.
+      - main  # Cambia a 'qa' si deseas desplegar en entorno de pruebas
 
 jobs:
-  deploy:
+  build-and-deploy:
+    name: 🐳 Build & Push Docker Image + ☁️ Deploy to EC2
     runs-on: ubuntu-latest
 
     steps:
-    - name: 🚀 Checkout del código
-      uses: actions/checkout@v3
+      - name: 📦 Clonar repositorio
+        uses: actions/checkout@v3
 
-    - name: 🔑 Acceder a EC2 y desplegar
-      uses: appleboy/ssh-action@v0.1.5
-      with:
-        host: ${{ secrets.EC2_HOST }}
-        username: ${{ secrets.EC2_USERNAME }}
-        key: ${{ secrets.EC2_SSH_PRIVATE_KEY }}
-        script: |
-          echo "🚀 Iniciando despliegue en EC2.."
+      - name: 🔧 Configurar Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
-          # Instalar git, docker y docker-compose si no están instalados
-          echo "🔧 Instalando dependencias necesarias..."
-          sudo yum update -y
-          sudo yum install -y git
-          sudo yum install -y docker
+      - name: 🔐 Iniciar sesión en Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
 
-          # Instalar Docker Compose manualmente
-          sudo curl -L https://github.com/docker/compose/releases/download/1.27.0/docker-compose-$(uname -s)-$(uname -m) -o /usr/local/bin/docker-compose
-          sudo chmod +x /usr/local/bin/docker-compose
+      - name: 🛠️ Construir y subir imagen Docker
+        run: |
+          echo "📦 Construyendo imagen..."
+          docker build -t agente47/register-service:latest ./services/register_user
+          echo "☁️ Subiendo imagen a Docker Hub..."
+          docker push agente47/register-service:latest
 
-          # Iniciar Docker si no está corriendo
-          sudo service docker start
-          sudo systemctl enable docker
-          # Crear la red de Docker si no existe
-          
-          if ! sudo docker network ls | grep -q "my_global_network"; then
-            sudo docker network create my_global_network
-          fi
+      - name: 🚀 Desplegar en EC2 por SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ubuntu  # Usa 'ubuntu' si estás en una instancia con Ubuntu
+          key: ${{ secrets.EC2_KEY }}
+          script: |
+            echo "📥 Descargando imagen desde Docker Hub..."
+            sudo docker pull agente47/register-service:latest
 
-          # Crear el directorio de la app si no existe
-          mkdir -p /home/${{ secrets.EC2_USERNAME }}/register_user
-          cd /home/${{ secrets.EC2_USERNAME }}/register_user
+            echo "🛑 Deteniendo contenedor anterior (si existe)..."
+            sudo docker stop register-service || true
+            sudo docker rm register-service || true
 
-          echo "📦 Clonando o actualizando código fuente..."
-          if [ -d "register_user" ]; then
-            cd register_user && git reset --hard && git pull origin main
-          else
-            git clone -b main https://github.com/argalarza/register_user.git register_user
-            cd register_user
-          fi
+            echo "🚀 Iniciando contenedor actualizado..."
+            sudo docker run -d --name register-service \
+              --env-file /home/ubuntu/.env.register-service \
+              -p 4001:4001 \
+              --network my_global_network \
+              agente47/register-service:latest
 
-          echo "📑 Creando archivo .env en el servidor..."
-          cat <<EOF > .env
-          DB_HOST=${{ secrets.DB_HOST }}
-          DB_PORT=${{ secrets.DB_PORT }}
-          DB_USER=${{ secrets.DB_USER }}
-          DB_PASSWORD=${{ secrets.DB_PASSWORD }}
-          DB_NAME=${{ secrets.DB_NAME }}
-          JWT_SECRET=${{ secrets.JWT_SECRET }}
-          PORT=3001
-          EOF
-
-          echo "🛠️ Construyendo y levantando los contenedores..."
-          sudo docker-compose -f /home/ec2-user/register_user/register_user/docker-compose.yml down --remove-orphans
-          sudo docker-compose -f /home/ec2-user/register_user/register_user/docker-compose.yml up --build -d
-
-
-          echo "🔍 Verificando que el servicio está corriendo..."
-          sudo docker ps | grep register_user || { echo "⚠️ ERROR: El contenedor no se inició correctamente."; exit 1; }
-
-          echo "✅ Despliegue completado exitosamente."
+            echo "✅ Despliegue completado."
