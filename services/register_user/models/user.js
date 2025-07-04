@@ -1,3 +1,4 @@
+// models/user.js
 const pool = require('../config/db');
 
 async function findUserByEmail(email) {

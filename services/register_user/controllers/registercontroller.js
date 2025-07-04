@@ -1,3 +1,4 @@
+// controllers/authController.js
 const bcrypt = require('bcryptjs');
 const { verifyRecaptcha } = require('../services/recaptcha');
 const { verifyGoogleToken } = require('../services/googleAuth');
@@ -11,6 +12,17 @@ async function register(req, res) {
   } = req.body;
 
   try {
+    // 🛡️ Verificar reCAPTCHA
+    if (!recaptchaToken) {
+      return res.status(400).json({ error: 'Falta el token de reCAPTCHA' });
+    }
+
+    const recaptchaOk = await verifyRecaptcha(recaptchaToken);
+    if (!recaptchaOk) {
+      return res.status(403).json({ error: 'Verificación reCAPTCHA fallida' });
+    }
+
+    // 🔍 Verificar si el usuario ya existe
     const existing = await findUserByEmail(email);
     if (existing) return res.status(409).json({ error: 'El email ya está registrado' });
 
@@ -18,33 +30,32 @@ async function register(req, res) {
     const userRole = allowedRoles.includes(role) ? role : 'client';
 
     let userData = {
-      name, email, birthdate, gender,
+      name,
+      email,
+      birthdate,
+      gender,
       provider: provider || 'local',
       role: userRole,
       password_hash: null
     };
-if (provider === 'google') {
-  if (!oauthToken) return res.status(400).json({ error: 'Token de Google faltante' });
-  const data = await verifyGoogleToken(oauthToken);
-  userData = { ...userData, ...data, provider: 'google' };
 
-} else if (provider === 'facebook') {
-  if (!oauthToken) return res.status(400).json({ error: 'Token de Facebook faltante' });
-  const data = await verifyFacebookToken(oauthToken);
-  userData = { ...userData, ...data, provider: 'facebook' };
-}
-
+    // 🔐 Verificación por proveedor (Google, Facebook o local)
     if (provider === 'google') {
+      if (!oauthToken) return res.status(400).json({ error: 'Token de Google faltante' });
       const data = await verifyGoogleToken(oauthToken);
       userData = { ...userData, ...data, provider: 'google' };
+
     } else if (provider === 'facebook') {
+      if (!oauthToken) return res.status(400).json({ error: 'Token de Facebook faltante' });
       const data = await verifyFacebookToken(oauthToken);
       userData = { ...userData, ...data, provider: 'facebook' };
+
     } else {
       if (!password) return res.status(400).json({ error: 'Contraseña requerida' });
       userData.password_hash = await bcrypt.hash(password, 12);
     }
 
+    // ✅ Crear usuario
     const newUserId = await createUser(userData);
     res.status(201).json({ message: 'Registro exitoso', userId: newUserId, role: userRole });
 
