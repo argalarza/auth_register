@@ -34,7 +34,7 @@ jobs:
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.EC2_HOST }}
-          username: ec2-user  # Usa 'ubuntu' si estás en una instancia con Ubuntu
+          username: ec2-user  # Usa 'ubuntu' si estás en una instancia con Ubuntu.
           key: ${{ secrets.EC2_KEY }}
           script: |
             echo "📥 Descargando imagen desde Docker Hub..."
