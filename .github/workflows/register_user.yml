@@ -34,11 +34,29 @@ jobs:
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.EC2_HOST }}
-          username: ec2-user  # Usa 'ubuntu' si estás en una instancia con Ubuntu.
+          username: ec2-user
           key: ${{ secrets.EC2_KEY }}
           script: |
+            echo "📝 Creando archivo .env.register-service..."
+            cat <<EOF | sudo tee /home/ec2-user/.env.register-service
+            MYSQL_DB_HOST=50.16.111.165
+            MYSQL_DB_PORT=3306
+            MYSQL_DB_USER=serious
+            MYSQL_DB_PASSWORD=123456
+            MYSQL_DB_NAME=users_db
+            JWT_SECRET=mysecretkey1234
+            PORT=4001
+            RECAPTCHA_SECRET_KEY=6LcT524rAAAAAMmIhgD1THXQirxGRXtABvE01mAS
+            GOOGLE_CLIENT_ID=1008167384967-nfl2rnbjcn126bgsavbte6uqc6qqojqd.apps.googleusercontent.com
+            FACEBOOK_APP_ID=709794134871021
+            EOF
+
             echo "📥 Descargando imagen desde Docker Hub..."
             sudo docker pull agente47/register-service:latest
+
+            echo "🔌 Verificando red 'my_global_network'..."
+            sudo docker network inspect my_global_network >/dev/null 2>&1 || \
+              sudo docker network create my_global_network
 
             echo "🛑 Deteniendo contenedor anterior (si existe)..."
             sudo docker stop register-service || true
@@ -46,7 +64,7 @@ jobs:
 
             echo "🚀 Iniciando contenedor actualizado..."
             sudo docker run -d --name register-service \
-              --env-file /home/ubuntu/.env.register-service \
+              --env-file /home/ec2-user/.env.register-service \
               -p 4001:4001 \
               --network my_global_network \
               agente47/register-service:latest
