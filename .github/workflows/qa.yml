@@ -3,7 +3,7 @@ name: SonarQube Scan - register_user
 on:
   push:
     branches:
-      - test
+      - main
     paths:
       - 'services/register_user/**'
       - '.github/workflows/qa.yml'
