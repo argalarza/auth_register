@@ -37,7 +37,7 @@ jobs:
             echo "No test script found"
           fi
 
-      - name: 📊 Ejecutar análisis SonarQube
+      - name: 📊 Ejecutar análisis SonarQube..
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
           SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
